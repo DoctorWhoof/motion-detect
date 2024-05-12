@@ -1,8 +1,8 @@
-use std::time::{ Duration, Instant };
+use std::{time::{ Duration, Instant }, error::Error};
 use eye::hal::{ PlatformContext, traits::{Context, Device, Stream} };
 
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
 
     // Settings
     let camera_warm_up = Duration::from_secs(2);
@@ -29,12 +29,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for dev in &devices {
         println!("    {:?}", dev);
     }
-
-    // First, we need a capture device to read images from. For this example, let's just choose
-    // whatever device is first in the list.
+    
+    // Query for available streams and choose the first one on the first device.
     let device = ctx.open_device(&devices[0].uri)?;
-
-    // Query for available streams and just choose the first one.
     let streams = device.streams()?;
     if streams.is_empty() {
         println!("\nError, no video streams detected.");
@@ -66,12 +63,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pixel_count_threshold = (thumb_len as f32 * image_threshold) as i32;
     let mut previous_thumb = 0;
     let mut current_thumb = 1;
-    let mut thumbs = [                              // Two thumbnails, previous and current.
-        vec![0; thumb_width * thumb_height * 3],    // 3 bytes per pixel.
+    let mut thumbs = [                              // Two thumbnail buffers, previous and current.
+        vec![0; thumb_width * thumb_height * 3],    // 3 bytes per pixel (RGB).
         vec![0; thumb_width * thumb_height * 3],
     ];
     
-    // Capture single frame and resize to a thumbnail size
+    // Function (OK, closure) to capture single frame and resize it to a thumbnail size,
+    // stored in the "thumb" byte buffer passed as an argument.
     let mut update_thumbnail = |thumb:&mut Vec<u8>| {
         let frame = stream
             .next()
@@ -80,7 +78,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
         let mut source_x = 0;
         let mut source_y = 0;
-
         while source_y < stream_desc.height as usize {
             while source_x < stream_desc.width as usize {
                 let mut resized_pixel:[u32; 3] = [0, 0, 0];
@@ -101,7 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 thumb[dest_index+1] = (resized_pixel[1] as usize / sample_count).clamp(0, 255) as u8;
                 thumb[dest_index+2] = (resized_pixel[2] as usize / sample_count).clamp(0, 255) as u8;
 
-                source_x += downsample;
+                source_x += downsample; // We increment by as many pixels as "downsample" instead of just 1.
             }
             source_x = 0;
             source_y += downsample;
@@ -114,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut latest_movement_time:Option<Instant> = None;
 
     // Wait for camera warm up (avoids black frames and false motion positives)
-    println!("'Warming up' camera...");
+    println!("warming up");
     std::thread::sleep(camera_warm_up);
 
     // Init thumbnails
@@ -130,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // };
 
     // Loop forever until interrupted.
-    println!("\nCamera initialized. Waiting for motion...");
+    println!("ready");
     loop {
         // Capture new thumbnail for current frame
         update_thumbnail(&mut thumbs[current_thumb]);
