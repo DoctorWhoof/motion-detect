@@ -54,11 +54,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             panic!("Image buffer creation failed")
         };
         
-        DynamicImage::from(buffer).resize(
-            stream_desc.width / downsample,
-            stream_desc.height / downsample,
-            FilterType::Triangle                // "Triangle" is a linear filter, fast and without sharpening artifacts
-        )
+        DynamicImage::from(buffer)
+            .brighten(25)
+            .resize(
+                stream_desc.width / downsample,
+                stream_desc.height / downsample,
+                FilterType::Triangle                // "Triangle" is a linear filter, fast and without sharpening artifacts
+            )
     };
 
     // Bookkeeping
