@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Query for available streams and just choose the first one.
     let streams = device.streams()?;
     if streams.is_empty() {
-        println!("\nError, no video streams available");
+        println!("\nError, no video streams detected.");
         std::process::exit(19); // No such device
     }
 
@@ -100,14 +100,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Bookkeeping
+    // Time keeping
     let app_time = std::time::Instant::now();
     let mut last_frame_time = app_time;
     let mut latest_movement_time:Option<Instant> = None;
 
-    // Wait for camera warm up and initialize first thumbnail
+    // Wait for camera warm up (avoids black frames and false motion positives)
     println!("'Warming up' camera...");
     std::thread::sleep(camera_warm_up);
+
+    // Init thumbnails
     update_thumbnail(&mut thumbs[previous_thumb]);
     update_thumbnail(&mut thumbs[current_thumb]);
 
