@@ -5,6 +5,5 @@ Written in Rust with minimal dependencies, the eye-hal crate only.
 
 # TO DO:
 - Command line settings (currently settings are hard coded)
-- Shell script example
 - Skip motion detection if image is too dark
 - Processing: brightness
