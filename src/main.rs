@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // };
 
     // Loop forever until interrupted.
-    println!("'Camera initialized. Waiting for motion...");
+    println!("\nCamera initialized. Waiting for motion...");
     loop {
         // Capture new thumbnail for current frame
         update_thumbnail(&mut thumbs[current_thumb]);
