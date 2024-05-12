@@ -3,8 +3,20 @@ name = "cam"
 version = "0.1.0"
 edition = "2021"
 
+[dependencies]
+eye = "0.5.0"
+
+[dependencies.image]
+version = "0.25.1"
+default-features = false
+features = ["png"]
+# mozjpeg-sys = "2.1.0"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies.nokhwa]
-version = "0.10.4"
-features = ["input-native", "output-wgpu"]
+# [dependencies.nokhwa]
+# version = "0.10.4"
+# features = ["input-native", "output-wgpu"]
+
+# [target.armv7-unknown-linux-musleabihf]
+# linker = "arm-linux-gnueabihf-ld"
