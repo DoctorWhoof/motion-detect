@@ -8,9 +8,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Settings
     let frame_capture_interval = Duration::from_secs_f32(0.25); 
     let motion_tail_length = Duration::from_secs(2);
+    let camera_warm_up = Duration::from_secs(2);
+    
     let capture_width = 640;
     let capture_height = 480;
     let downsample = 8;
+
     let pixel_threshold:f32 = 10.0;   // The percentage a pixel must change for it to count as an actual change.
     let image_threshold:f32 = 20.0;   // The percentage of pixels in an image needed to change to to trigger movement detection.
 
@@ -59,8 +62,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Bookkeeping
-    let time = std::time::Instant::now();
-    let mut last_frame_time = time;
+    let app_time = std::time::Instant::now();
+    let mut last_frame_time = app_time;
     let mut prev_thumbnail:Option<DynamicImage> = None;
     let mut latest_movement_time:Option<Instant> = None;
     
@@ -74,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         // Start motion detection if first frame is initialized
         if let Some(ref mut prev_thumbnail) = prev_thumbnail {
-
+            // Capture new thumbnail for current frame
             let thumbnail = capture_thumbnail();
 
             // Ensures processing will actually wait for the desired capture interval,
@@ -107,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let total_pixels = thumbnail.width() * thumbnail.height();
             let pixel_count_threshold = (total_pixels as f32 * image_threshold) as i32;
 
-            #[allow(clippy::collapsible_else_if)]
+            // Outputs messages if motion events detected
             if changed_pixels > pixel_count_threshold {
                 if latest_movement_time.is_none() {
                     println!("start");
@@ -124,12 +127,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-        // If not initialized, wait for camera warm up and initialize first thumbnail
         } else {
-            // Wait for camera
+
+            // If not initialized, wait for camera warm up and initialize first thumbnail
             println!("'Warming up' camera...");
             std::thread::sleep(Duration::from_secs(1));
-            if time.elapsed().as_secs_f32() > 2.0 {
+            if app_time.elapsed() > camera_warm_up {
                 let thumbnail = capture_thumbnail();
                 if thumbnail.save("test.png").is_err(){
                     println!("Error saving thumbnail image");
