@@ -6,10 +6,11 @@ edition = "2021"
 [dependencies]
 eye = "0.5.0"
 
-[dependencies.image]
-version = "0.25.1"
-default-features = false
-features = ["png"]
+# # For debugging only! Comment out if saving a test image isn't necessary.
+# [dependencies.image]
+# version = "0.25.1"
+# default-features = false
+# features = ["png"]
 
 # [target.armv7-unknown-linux-musleabihf]
 # linker = "arm-linux-gnueabihf-ld"

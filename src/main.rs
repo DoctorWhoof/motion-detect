@@ -1,21 +1,20 @@
 use std::time::{ Duration, Instant };
 use eye::hal::{ PlatformContext, traits::{Context, Device, Stream} };
-use image::{ imageops::FilterType, DynamicImage, GenericImageView, RgbImage };
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Settings
-    let frame_capture_interval = Duration::from_secs_f32(0.25); 
-    let motion_tail_length = Duration::from_secs(2);
     let camera_warm_up = Duration::from_secs(2);
+    let motion_tail_length = Duration::from_secs(2);
+    let frame_capture_interval = Duration::from_secs_f32(0.2); 
     
     let capture_width = 640;
     let capture_height = 480;
-    let downsample = 8;
+    let downsample:usize = 8;
 
-    let pixel_threshold:f32 = 10.0;   // The percentage a pixel must change for it to count as an actual change.
-    let image_threshold:f32 = 20.0;   // The percentage of pixels in an image needed to change to to trigger movement detection.
+    let pixel_threshold = 10.0;   // The percentage a pixel must change for it to count as an actual change.
+    let image_threshold = 20.0;   // The percentage of pixels in an image needed to change to to trigger movement detection.
 
     // Create a context
     let ctx = PlatformContext::default();
@@ -33,127 +32,144 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     stream_desc.interval = frame_capture_interval;
     stream_desc.width = capture_width;
     stream_desc.height = capture_height;
-    println!("Stream pixel bits: {:?}", stream_desc.pixfmt.bits());
-    println!("Stream: {:?}", stream_desc);
+    println!("Stream info: {:.1?}", stream_desc);
 
     // Since we want to capture images, we need to access the native image stream of the device.
     // The backend will internally select a suitable implementation for the platform stream. On
     // Linux for example, most devices support memory-mapped buffers.
     let mut stream = device.start_stream(&stream_desc)?;
     
+    // Convert pixel_threshold from a percentage to an integer amount with a max value of 255
+    let pixel_threshold = ((pixel_threshold * (255.0 / 100.0)) as i32).clamp(0, 255);
+
+    // Normalize and clamp image threshold from its original percentage value
+    let image_threshold = (image_threshold / 100.0f32).clamp(0.0, 1.0); 
+
+    // Thumbnail management.
+    let thumb_width = stream_desc.width as usize / downsample;
+    let thumb_height = stream_desc.height as usize / downsample;
+    let thumb_len = thumb_width * thumb_height;
+    let pixel_count_threshold = (thumb_len as f32 * image_threshold) as i32;
+    let mut previous_thumb = 0;
+    let mut current_thumb = 1;
+    let mut thumbs = [                              // Two thumbnails, previous and current.
+        vec![0; thumb_width * thumb_height * 3],    // 3 bytes per pixel.
+        vec![0; thumb_width * thumb_height * 3],
+    ];
+    
     // Capture single frame and resize to a thumbnail size
-    let mut capture_thumbnail = || {
+    let mut update_thumbnail = |thumb:&mut Vec<u8>| {
         let frame = stream
             .next()
-            .expect("Stream is dead")               // Unwraps result
-            .expect("Failed to capture frame");     // Unwraps option
+            .expect("Stream is dead")               // Unwraps result.
+            .expect("Failed to capture frame");     // Unwraps option.
     
-        let Some(buffer) = 
-            RgbImage::from_raw(stream_desc.width, stream_desc.height, frame.into())
-        else {
-            panic!("Image buffer creation failed")
-        };
-        
-        DynamicImage::from(buffer)
-            .brighten(25)
-            .resize(
-                stream_desc.width / downsample,
-                stream_desc.height / downsample,
-                FilterType::Triangle                // "Triangle" is a linear filter, fast and without sharpening artifacts
-            )
+        let mut source_x = 0;
+        let mut source_y = 0;
+        let sample_count = downsample * downsample;
+
+        while source_y < stream_desc.height as usize {
+            while source_x < stream_desc.width as usize {
+                let mut resized_pixel:[u32; 3] = [0, 0, 0];
+                for y in 0 .. downsample {
+                    for x in 0 .. downsample {
+                        let pixel_index = ((source_y + y) * stream_desc.width as usize) + (source_x + x);
+                        let sub_pixel_index = pixel_index * 3;
+                        // Accumulate RGB values
+                        resized_pixel[0] += frame[sub_pixel_index] as u32;
+                        resized_pixel[1] += frame[sub_pixel_index+1] as u32;
+                        resized_pixel[2] += frame[sub_pixel_index+2] as u32;
+                    }
+                }
+
+                let dest_index = (((source_y / downsample) * thumb_width) + (source_x / downsample)) * 3;
+
+                // Averages RGB value and assigns it to thumbnail
+                thumb[dest_index] = u8::try_from(resized_pixel[0] as usize / sample_count).unwrap();
+                thumb[dest_index+1] = u8::try_from(resized_pixel[1] as usize / sample_count).unwrap();
+                thumb[dest_index+2] = u8::try_from(resized_pixel[2] as usize / sample_count).unwrap();
+
+                source_x += downsample;
+            }
+            source_x = 0;
+            source_y += downsample;
+        }
     };
 
     // Bookkeeping
     let app_time = std::time::Instant::now();
     let mut last_frame_time = app_time;
-    let mut prev_thumbnail:Option<DynamicImage> = None;
     let mut latest_movement_time:Option<Instant> = None;
-    
-    // Convert pixel_threshold from a percentage to an integer amount with a max value of 255
-    let pixel_threshold = ((pixel_threshold * (255.0 / 100.0)) as i32).clamp(0, 255);
-    
-    // Normalize and clamp image threshold from its original percentage value
-    let image_threshold = (image_threshold / 100.0f32).clamp(0.0, 1.0); 
+
+    // Wait for camera warm up and initialize first thumbnail
+    println!("'Warming up' camera...");
+    std::thread::sleep(camera_warm_up);
+    update_thumbnail(&mut thumbs[previous_thumb]);
+    update_thumbnail(&mut thumbs[current_thumb]);
+
+    // // Debug save image. Optional! Comment out if image crate is not available.
+    // let img = image::RgbImage::from_raw(thumb_width as u32, thumb_height as u32, thumbs[0].clone()).unwrap();
+    // if img.save("test.png").is_err(){
+    //     println!("Error saving thumbnail image");
+    // } else {
+    //     println!("First thumbnail saved!");
+    // };
 
     // Loop forever until interrupted.
+    println!("'Camera initialized. Waiting for motion...");
     loop {
-        // Start motion detection if first frame is initialized
-        if let Some(ref mut prev_thumbnail) = prev_thumbnail {
-            // Capture new thumbnail for current frame
-            let thumbnail = capture_thumbnail();
+        // Capture new thumbnail for current frame
+        update_thumbnail(&mut thumbs[current_thumb]);
 
-            // Ensures processing will actually wait for the desired capture interval,
-            // since a camewra may refuse to record at very low frame rates
-            let processing_time = last_frame_time.elapsed();
-            let wait_time = (frame_capture_interval - processing_time).as_secs_f32();
-            if wait_time > 0.001 {
-                std::thread::sleep(Duration::from_secs_f32(wait_time));
-            } else {
-                println!("Can't wait for negative time! Skipping");
+        // Ensures processing will actually wait for the desired capture interval,
+        // since a camera may refuse to record at very low frame rates
+        let processing_time = last_frame_time.elapsed();
+        if processing_time < frame_capture_interval {
+            let wait_time = frame_capture_interval - processing_time;
+            if wait_time.as_millis() > 1 {
+                std::thread::sleep(wait_time);
             }
+        }
 
-            // Motion detection
-            let mut changed_pixels = 0;
-            for y in 0 .. thumbnail.height() {
-                for x in 0 .. thumbnail.width() {
-                    let previous_pixel = prev_thumbnail.get_pixel(x, y);
-                    let pixel = thumbnail.get_pixel(x, y);
+        // Pixel change detection
+        let mut changed_pixels = 0;
+        for y in 0 .. thumb_height {
+            for x in 0 .. thumb_width {
+                let index = ((y * thumb_width) + x) * 3;
 
-                    let diff_r = (pixel[0] as i32 - previous_pixel[0] as i32).abs();
-                    let diff_g = (pixel[1] as i32 - previous_pixel[1] as i32).abs();
-                    let diff_b = (pixel[2] as i32 - previous_pixel[2] as i32).abs();
+                let previous_pixel = &thumbs[previous_thumb][index ..= index+2];
+                let pixel = &&thumbs[current_thumb][index ..= index+2];
 
-                    if diff_r >= pixel_threshold || diff_g >= pixel_threshold || diff_b >= pixel_threshold{
-                        changed_pixels += 1;
-                    }
-                }   
-            }
+                let diff_r = (pixel[0] as i32 - previous_pixel[0] as i32).abs();
+                let diff_g = (pixel[1] as i32 - previous_pixel[1] as i32).abs();
+                let diff_b = (pixel[2] as i32 - previous_pixel[2] as i32).abs();
 
-            let total_pixels = thumbnail.width() * thumbnail.height();
-            let pixel_count_threshold = (total_pixels as f32 * image_threshold) as i32;
-
-            // Outputs messages if motion events detected
-            if changed_pixels > pixel_count_threshold {
-                if latest_movement_time.is_none() {
-                    println!("start");
+                if diff_r >= pixel_threshold || diff_g >= pixel_threshold || diff_b >= pixel_threshold{
+                    changed_pixels += 1;
                 }
-                *prev_thumbnail = thumbnail;
-                latest_movement_time = Some(Instant::now());
-            } else {
-                // No movement in current frame, but there is an active movement started
-                if let Some(time) = latest_movement_time {
-                    if time.elapsed() > motion_tail_length {
-                        println!("stop");
-                        latest_movement_time = None;
-                    }
-                }
-            }
+            }   
+        }
 
+        // Outputs messages if sufficient pixels have changed or stopped changing.
+        if changed_pixels > pixel_count_threshold {
+            if latest_movement_time.is_none() {
+                println!("start");
+            }
+            latest_movement_time = Some(Instant::now());
+            // "flip" buffers!
+            previous_thumb = 1 - previous_thumb;
+            current_thumb = 1 - current_thumb;            
         } else {
-
-            // If not initialized, wait for camera warm up and initialize first thumbnail
-            println!("'Warming up' camera...");
-            std::thread::sleep(Duration::from_secs(1));
-            if app_time.elapsed() > camera_warm_up {
-                let thumbnail = capture_thumbnail();
-                if thumbnail.save("test.png").is_err(){
-                    println!("Error saving thumbnail image");
-                } else {
-                    println!("First thumbnail saved!");
-                };
-                prev_thumbnail = Some( thumbnail );
-                println!("'Camera initialized. Waiting for motion...");
+            // No movement in current frame, but there is an active movement started.
+            if let Some(time) = latest_movement_time {
+                if time.elapsed() > motion_tail_length {
+                    println!("stop");
+                    latest_movement_time = None;
+                }
             }
-        };
+        }
 
         last_frame_time = Instant::now();
     }
 }
 
-
-// println!(
-//     "Captured! Total pixels:{}, changed pixels:{}, pixel threshold:{}, image threshold:{}",
-//     total_pixels, changed_pixels, pixel_threshold, pixel_count_threshold
-// );
-
-// println!("Captured frame after {:.2} ms", last_frame_time.elapsed().as_secs_f32() * 1000.0);
