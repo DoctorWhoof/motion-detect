@@ -21,6 +21,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query for available devices.
     let devices = ctx.devices()?;
+    if devices.is_empty() {
+        println!("\nError, no deviced detected.");
+        std::process::exit(19); // No such device
+    }
+    println!("Available devices:");
+    for dev in &devices {
+        println!("    {:?}", dev);
+    }
 
     // First, we need a capture device to read images from. For this example, let's just choose
     // whatever device is first in the list.
