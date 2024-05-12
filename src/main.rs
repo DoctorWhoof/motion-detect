@@ -28,6 +28,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query for available streams and just choose the first one.
     let streams = device.streams()?;
+    if streams.is_empty() {
+        panic!("Error, no video streams available");
+    }
+
     let mut stream_desc = streams[0].clone();
     stream_desc.interval = frame_capture_interval;
     stream_desc.width = capture_width;
