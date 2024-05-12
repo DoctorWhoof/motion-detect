@@ -29,7 +29,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Query for available streams and just choose the first one.
     let streams = device.streams()?;
     if streams.is_empty() {
-        panic!("Error, no video streams available");
+        println!("\nError, no video streams available");
+        std::process::exit(19); // No such device
     }
 
     let mut stream_desc = streams[0].clone();
