@@ -49,6 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let thumb_width = stream_desc.width as usize / downsample;
     let thumb_height = stream_desc.height as usize / downsample;
     let thumb_len = thumb_width * thumb_height;
+    let sample_count = downsample * downsample;
     let pixel_count_threshold = (thumb_len as f32 * image_threshold) as i32;
     let mut previous_thumb = 0;
     let mut current_thumb = 1;
@@ -66,15 +67,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
         let mut source_x = 0;
         let mut source_y = 0;
-        let sample_count = downsample * downsample;
 
         while source_y < stream_desc.height as usize {
             while source_x < stream_desc.width as usize {
                 let mut resized_pixel:[u32; 3] = [0, 0, 0];
                 for y in 0 .. downsample {
                     for x in 0 .. downsample {
-                        let pixel_index = ((source_y + y) * stream_desc.width as usize) + (source_x + x);
-                        let sub_pixel_index = pixel_index * 3;
+                        let sub_pixel_index = (((source_y + y) * stream_desc.width as usize) + (source_x + x)) * 3;
                         // Accumulate RGB values
                         resized_pixel[0] += frame[sub_pixel_index] as u32;
                         resized_pixel[1] += frame[sub_pixel_index+1] as u32;
@@ -85,9 +84,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let dest_index = (((source_y / downsample) * thumb_width) + (source_x / downsample)) * 3;
 
                 // Averages RGB value and assigns it to thumbnail
-                thumb[dest_index] = u8::try_from(resized_pixel[0] as usize / sample_count).unwrap();
-                thumb[dest_index+1] = u8::try_from(resized_pixel[1] as usize / sample_count).unwrap();
-                thumb[dest_index+2] = u8::try_from(resized_pixel[2] as usize / sample_count).unwrap();
+                thumb[dest_index] = (resized_pixel[0] as usize / sample_count).clamp(0, 255) as u8;
+                thumb[dest_index+1] = (resized_pixel[1] as usize / sample_count).clamp(0, 255) as u8;
+                thumb[dest_index+2] = (resized_pixel[2] as usize / sample_count).clamp(0, 255) as u8;
 
                 source_x += downsample;
             }

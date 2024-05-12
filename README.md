@@ -3,6 +3,8 @@ It is intended to be used alongside a shell script that monitors the terminal ou
 
 Written in Rust with minimal dependencies, the eye-hal crate only.
 
-TO DO:
+# TO DO:
 - Command line settings (currently settings are hard coded)
 - Shell script example
+- Skip motion detection if image is too dark
+- Processing: brightness
