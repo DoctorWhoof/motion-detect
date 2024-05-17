@@ -39,6 +39,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("Detected video stream on device {n}");
             device_index = n;
             break;
+        } else {
+            println!("Device {n} has no video streams. Checking next one...");
         }
     };
 
