@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Query for available devices.
     let devices = ctx.devices()?;
     if devices.is_empty() {
-        println!("\nError, no deviced detected.");
+        println!("\nError, no device detected.");
         std::process::exit(19); // No such device
     }
     println!("Available devices:");
@@ -31,12 +31,24 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     
     // Query for available streams and choose the first one on the first device.
-    let device = ctx.open_device(&devices[0].uri)?;
+    let mut device_index = 0;
+    #[allow(clippy::needless_range_loop)]
+    for n in 0 .. devices.len() {
+        let temp = ctx.open_device(&devices[n].uri)?;
+        if !temp.streams()?.is_empty(){
+            println!("Detected video stream on device {n}");
+            device_index = n;
+            break;
+        }
+    };
+
+    let device = ctx.open_device(&devices[device_index].uri)?;
     let streams = device.streams()?;
     if streams.is_empty() {
         println!("\nError, no video streams detected.");
         std::process::exit(19); // No such device
     }
+
 
     let mut stream_desc = streams[0].clone();
     stream_desc.interval = frame_capture_interval;
