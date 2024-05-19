@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Settings
     let camera_warm_up = Duration::from_secs(2);
-    let motion_tail_length = Duration::from_secs(2);
+    let motion_tail_length = Duration::from_secs(1);
     let frame_capture_interval = Duration::from_secs_f32(0.2); 
     
     let capture_width = 640;
@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // stream_desc.height = capture_height;
     // println!("    {:.1?}", stream_desc);
     let pixfmt = if streams.is_empty(){
-        PixelFormat::Rgb(8)
+        PixelFormat::Custom("v024".to_string())
     } else {
         streams[0].pixfmt.clone()
     };
