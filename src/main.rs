@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let device = ctx.open_device(&devices[device_index].uri)?;
     let streams = device.streams()?;
     if streams.is_empty() {
-        println!("\nError, no video streams detected.");
+        println!("\nWarning, no video streams detected.");
         std::process::exit(19); // No such device
     }
 
