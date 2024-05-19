@@ -30,13 +30,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("    {:?}", dev);
     }
     
-    // Query for available streams and choose the first one on the first device.
+    // Query for available streams and choose the first index with available streams.
     let mut device_index = 0;
-    #[allow(clippy::needless_range_loop)]
-    for n in 0 .. devices.len() {
-        let temp = ctx.open_device(&devices[n].uri)?;
-        if !temp.streams()?.is_empty(){
-            println!("Detected video stream on device {n}");
+    for (n,device) in devices.iter().enumerate() {
+        let candidate = ctx.open_device(&device.uri)?;
+        if !candidate.streams()?.is_empty(){
+            println!("Detected video stream on device {n}:");
             device_index = n;
             break;
         } else {
@@ -51,12 +50,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::process::exit(19); // No such device
     }
 
-
+    // TODO: Only pick a stream if it satisfies the required video specs (resolution, frame rate)
     let mut stream_desc = streams[0].clone();
     stream_desc.interval = frame_capture_interval;
     stream_desc.width = capture_width;
     stream_desc.height = capture_height;
-    println!("Stream info: {:.1?}", stream_desc);
+    println!("    {:.1?}", stream_desc);
 
     // Since we want to capture images, we need to access the native image stream of the device.
     // The backend will internally select a suitable implementation for the platform stream. On
