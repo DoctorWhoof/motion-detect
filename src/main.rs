@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // stream_desc.height = capture_height;
     // println!("    {:.1?}", stream_desc);
     let pixfmt = if streams.is_empty(){
-        PixelFormat::Custom("v024".to_string())
+        PixelFormat::Rgb(24)
     } else {
         streams[0].pixfmt.clone()
     };
