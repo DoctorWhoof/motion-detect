@@ -1,5 +1,5 @@
 use std::{time::{ Duration, Instant }, error::Error};
-use eye::hal::{ PlatformContext, traits::{Context, Device, Stream} };
+use eye::hal::{ format::PixelFormat, stream::Descriptor, traits::{Context, Device, Stream}, PlatformContext };
 
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -47,15 +47,27 @@ fn main() -> Result<(), Box<dyn Error>> {
     let streams = device.streams()?;
     if streams.is_empty() {
         println!("\nWarning, no video streams detected.");
-        std::process::exit(19); // No such device
+        // std::process::exit(19); // No such device
     }
 
-    // TODO: Only pick a stream if it satisfies the required video specs (resolution, frame rate)
-    let mut stream_desc = streams[0].clone();
-    stream_desc.interval = frame_capture_interval;
-    stream_desc.width = capture_width;
-    stream_desc.height = capture_height;
-    println!("    {:.1?}", stream_desc);
+    // // TODO: Only pick a stream if it satisfies the required video specs (resolution, frame rate)
+    // let mut stream_desc = streams[0].clone();
+    // stream_desc.interval = frame_capture_interval;
+    // stream_desc.width = capture_width;
+    // stream_desc.height = capture_height;
+    // println!("    {:.1?}", stream_desc);
+    let pixfmt = if streams.is_empty(){
+        PixelFormat::Rgb(8)
+    } else {
+        streams[0].pixfmt.clone()
+    };
+
+    let stream_desc = Descriptor{
+        width: capture_width,
+        height: capture_height,
+        interval: frame_capture_interval,
+        pixfmt,
+    };
 
     // Since we want to capture images, we need to access the native image stream of the device.
     // The backend will internally select a suitable implementation for the platform stream. On
