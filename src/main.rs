@@ -33,10 +33,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Query for available streams and choose the first index with available streams.
     let mut device_index = 0;
     for (n,device) in devices.iter().enumerate() {
+        device_index = n;
         let candidate = ctx.open_device(&device.uri)?;
         if !candidate.streams()?.is_empty(){
             println!("Detected video stream on device {n}:");
-            device_index = n;
             break;
         } else {
             println!("Device {n} has no video streams. Checking next one...");
