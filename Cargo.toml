@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-eye = "0.5.0"
+eye = { version = "0.5.0", default-features = false }
 
 # # For debugging only! Comment out if saving a test image isn't necessary.
 # [dependencies.image]
